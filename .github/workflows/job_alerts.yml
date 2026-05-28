@@ -2,7 +2,7 @@ name: Daily Job Alerts
 
 on:
   schedule:
-    - cron: "30 3 * * *"   # 9:00 AM IST daily
+    - cron: "30 4 * * *"   # 10:00 AM IST daily
   workflow_dispatch:        # manual trigger
 
 jobs:
