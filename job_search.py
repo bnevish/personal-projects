@@ -511,6 +511,77 @@ def fetch_timesjobs(keyword: str) -> list:
     return jobs
 
 
+# ── Google Jobs via SerpAPI ───────────────────────────────────────────────────
+def fetch_google_jobs(keyword: str, fresh_only: bool = False) -> list:
+    api_key = os.environ.get("SERPAPI_KEY", "").strip()
+    if not api_key:
+        log.warning("[SerpAPI] SERPAPI_KEY not set, skipping.")
+        return []
+
+    jobs = []
+    params = {
+        "engine": "google_jobs",
+        "q": f"{keyword} jobs bengaluru",
+        "location": "Bengaluru, Karnataka, India",
+        "api_key": api_key,
+        "hl": "en",
+        "gl": "in",
+    }
+    if fresh_only:
+        params["chips"] = "date_posted:today"
+
+    url = "https://serpapi.com/search?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+
+        for job in data.get("jobs_results", []):
+            ext = job.get("detected_extensions", {})
+            posted = ext.get("posted_at", "")
+            is_fresh = any(x in posted.lower() for x in
+                           ["hour", "just now", "today", "1 day", "yesterday"])
+
+            # Get best apply link
+            apply_options = job.get("apply_options", [])
+            if apply_options:
+                link = apply_options[0].get("link", "")
+                via = apply_options[0].get("title", "")
+            else:
+                link = job.get("related_links", [{}])[0].get("link", "")
+                via = job.get("via", "")
+
+            source_map = {
+                "linkedin": "LinkedIn 🔵",
+                "indeed": "Indeed 🟡",
+                "glassdoor": "Glassdoor 🟢",
+                "naukri": "Naukri 🟠",
+                "foundit": "Foundit 🔷",
+                "simplyhired": "SimplyHired ⚪",
+            }
+            via_lower = via.lower()
+            source = next((v for k, v in source_map.items() if k in via_lower), via)
+
+            jobs.append({
+                "title": job.get("title", ""),
+                "company": job.get("company_name", ""),
+                "skills_raw": job.get("description", "")[:300].lower(),
+                "salary_listed": ext.get("salary", ""),
+                "min_exp": "", "max_exp": "",
+                "posted": posted,
+                "is_fresh": is_fresh,
+                "link": link,
+                "job_id": f"serp_{abs(hash(link or job.get('title','')))}",
+                "ambition_rating": "", "ambition_reviews": "",
+                "source": f"Google Jobs → {source}",
+            })
+
+        log.info("[SerpAPI] '%s' → %d jobs", keyword, len(jobs))
+    except Exception as e:
+        log.warning("[SerpAPI] failed for '%s': %s", keyword, e)
+    return jobs
+
+
 # ── DuckDuckGo multi-source search ───────────────────────────────────────────
 JOB_SITES = ["linkedin.com", "glassdoor.co.in", "naukri.com",
              "in.indeed.com", "foundit.in", "simplyhired.co.in",
@@ -769,6 +840,14 @@ def main():
                 job["source"] = "Naukri"
                 parsed.append(job)
         add_jobs(parsed)
+        time.sleep(1)
+
+    # ── Google Jobs via SerpAPI (LinkedIn, Indeed, Glassdoor, company sites) ──
+    for keyword in ["audio dsp c developer", "audio embedded c engineer"]:
+        add_jobs(fetch_google_jobs(keyword, fresh_only=True))   # today only first
+        time.sleep(1)
+    for keyword in ["audio dsp c engineer bengaluru", "audio firmware c developer"]:
+        add_jobs(fetch_google_jobs(keyword, fresh_only=False))  # broader search
         time.sleep(1)
 
     # ── DuckDuckGo multi-source (LinkedIn, Glassdoor, Indeed, Foundit, etc.) ──
