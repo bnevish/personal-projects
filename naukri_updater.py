@@ -110,8 +110,17 @@ def _login(page, email: str, password: str) -> None:
         log.info("Login successful.")
     except PlaywrightTimeout:
         page.screenshot(path="login_failed.png", full_page=True)
-        log.error("Login page screenshot saved as login_failed.png")
-        raise RuntimeError("Login failed — check your email/password.")
+        log.error("Page URL after submit: %s", page.url)
+        log.error("Page title: %s", page.title())
+        # Log any visible error text
+        for sel in ['.errmsg', '.error-msg', '[class*=error]', '[class*=alert]', 'p']:
+            try:
+                el = page.locator(sel).first
+                if el.is_visible(timeout=500):
+                    log.error("Visible text (%s): %s", sel, el.inner_text()[:200])
+            except Exception:
+                pass
+        raise RuntimeError("Login failed — see logs above for Naukri's response.")
 
 
 def _update_profile(page) -> str:
