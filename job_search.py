@@ -288,24 +288,31 @@ def parse_naukri_job(raw: dict) -> dict:
     }
 
 
-def is_relevant(job: dict) -> bool:
+AUDIO_DSP_KEYWORDS = [
+    "audio dsp", "audio processing", "audio codec", "audio firmware",
+    "audio embedded", "audio engineer", "audio developer", "audio software",
+    "dsp engineer", "dsp developer", "dsp firmware", "dsp audio",
+    "acoustic", "amplifier", "hifi", "audio algorithm", "speech processing",
+    "voice processing", "sound processing",
+]
+C_KEYWORDS = [
+    "embedded c", "embedded-c", "c/c++", "c developer", "c programming",
+    "firmware c", "adsp", "arm intrinsics", "misra c", "cortex",
+]
+
+def job_category(job: dict) -> str:
+    """Returns: 'combo' (audio+C), 'audio' (audio only), or None (not relevant)"""
     combined = (job["title"] + " " + job["skills_raw"]).lower()
+    has_audio = any(k in combined for k in AUDIO_DSP_KEYWORDS)
+    has_c     = any(k in combined for k in C_KEYWORDS)
+    if has_audio and has_c:
+        return "combo"
+    if has_audio:
+        return "audio"
+    return None
 
-    # Audio/DSP alone is enough
-    audio_dsp_keywords = [
-        "audio dsp", "audio processing", "audio codec", "audio firmware",
-        "audio embedded", "audio engineer", "audio developer", "audio software",
-        "dsp engineer", "dsp developer", "dsp firmware", "dsp audio",
-        "acoustic", "amplifier", "hifi", "audio algorithm", "speech processing",
-        "voice processing", "sound processing",
-    ]
-    has_audio_dsp = any(k in combined for k in audio_dsp_keywords)
-
-    # OR embedded C/DSP without explicit "audio" (covers roles like DSP Engineer, Embedded C)
-    embedded_keywords = ["embedded c", "c/c++", "firmware engineer", "adsp", "arm intrinsics"]
-    has_embedded = any(k in combined for k in embedded_keywords)
-
-    return has_audio_dsp or has_embedded
+def is_relevant(job: dict) -> bool:
+    return job_category(job) is not None
 
 
 # ── CV match analysis ─────────────────────────────────────────────────────────
@@ -358,11 +365,19 @@ def format_job_card(job: dict, index: int) -> str:
     match_reasons = get_match_reasons(job)
     est_salary = estimate_salary(job, company_info)
     hike_info = get_hike_info(company_info)
+    category = job.get("category", "audio")
 
     card = ""
 
-    if job["is_fresh"]:
-        card += "🔴 <b>POSTED IN LAST 24 HRS — APPLY NOW</b>\n"
+    # Category + freshness badge
+    if job["is_fresh"] and category == "combo":
+        card += "🔴 <b>NEW TODAY — Audio DSP + C Match</b>\n"
+    elif job["is_fresh"]:
+        card += "🔴 <b>NEW TODAY — Audio DSP Match</b>\n"
+    elif category == "combo":
+        card += "🎯 <b>Audio DSP + C Match</b>\n"
+    else:
+        card += "🔵 <b>Audio DSP Match</b>\n"
 
     card += f"<b>{index}. {job['title']}</b>\n"
     card += f"🏢 {job['company']}"
@@ -405,14 +420,24 @@ def build_messages(jobs: list, date_str: str) -> list:
             f"No matching Embedded/DSP jobs in Bengaluru today.\nWill check again tomorrow!"
         ]
 
-    fresh = sum(j["is_fresh"] for j in jobs)
+    combo_fresh = sum(1 for j in jobs if j.get("category") == "combo" and j["is_fresh"])
+    combo_all   = sum(1 for j in jobs if j.get("category") == "combo")
+    audio_fresh = sum(1 for j in jobs if j.get("category") == "audio" and j["is_fresh"])
+    audio_all   = sum(1 for j in jobs if j.get("category") == "audio")
+    total_fresh = combo_fresh + audio_fresh
+
     header = (
         f"💼 <b>Job Alerts — Bengaluru</b>\n"
         f"📅 {date_str}\n"
-        f"🎯 Embedded | DSP | Audio | Automotive\n"
-        f"📊 {len(jobs)} relevant jobs"
-        + (f" | 🔴 {fresh} new today" if fresh else "")
-        + "\n━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"<b>Colour Guide:</b>\n"
+        f"🔴 = Posted within 24 hrs — Apply ASAP\n"
+        f"🎯 = Audio DSP + C match (older posts)\n"
+        f"🔵 = Audio DSP only match (older posts)\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"📊 Total: {len(jobs)} jobs  |  🔴 Fresh today: {total_fresh}\n"
+        f"🎯 DSP+C: {combo_all}  |  🔵 DSP only: {audio_all}\n"
+        f"━━━━━━━━━━━━━━━\n\n"
     )
 
     messages = []
@@ -873,11 +898,22 @@ def main():
     # ── LinkedIn referral posts ──
     referrals = fetch_linkedin_referrals()
 
-    # Sort: fresh first, then priority companies
-    all_jobs.sort(key=lambda j: (
-        not j["is_fresh"],
-        not any(c in j["company"].lower() for c in PRIORITY_COMPANIES),
-    ))
+    # Tag each job with its category
+    for job in all_jobs:
+        job["category"] = job_category(job) or "audio"
+
+    # Sort order:
+    # 1. combo + fresh (audio DSP + C, posted today)
+    # 2. combo (audio DSP + C, older)
+    # 3. audio + fresh (audio DSP only, posted today)
+    # 4. audio (audio DSP only, older)
+    def sort_key(j):
+        cat_order = 0 if j["category"] == "combo" else 1
+        fresh_order = 0 if j["is_fresh"] else 1
+        priority_order = 0 if any(c in j["company"].lower() for c in PRIORITY_COMPANIES) else 1
+        return (cat_order, fresh_order, priority_order)
+
+    all_jobs.sort(key=sort_key)
 
     fresh = sum(j["is_fresh"] for j in all_jobs)
     log.info("Total relevant: %d | Fresh: %d | Referral posts: %d",
