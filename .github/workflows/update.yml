@@ -33,7 +33,7 @@ jobs:
       - name: Install Playwright browsers
         run: |
           python -m playwright install chromium
-          sudo python -m playwright install-deps chromium
+          sudo env "PATH=$PATH" python -m playwright install-deps chromium
 
       - name: Install Xvfb
         run: sudo apt-get install -y xvfb
