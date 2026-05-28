@@ -198,10 +198,10 @@ HEADERS = {
 }
 
 SEARCH_KEYWORDS = [
-    "embedded software engineer",
-    "embedded c dsp engineer",
-    "audio dsp firmware engineer",
-    "automotive embedded engineer",
+    "audio dsp c developer",
+    "audio embedded c engineer",
+    "dsp audio firmware engineer",
+    "audio signal processing c",
 ]
 
 
@@ -289,13 +289,21 @@ def parse_naukri_job(raw: dict) -> dict:
 
 
 def is_relevant(job: dict) -> bool:
-    t = job["title"].lower()
-    s = job["skills_raw"].lower()
-    c = job["company"].lower()
-    return (
-        any(k in t or k in s for k in SKILL_MATCH_KEYWORDS) or
-        any(c_name in c for c_name in PRIORITY_COMPANIES)
-    )
+    combined = (job["title"] + " " + job["skills_raw"]).lower()
+
+    # Must have Audio/DSP signal
+    audio_dsp_keywords = ["audio", "dsp", "audio processing", "audio codec",
+                          "acoustic", "amplifier", "sound", "speech", "voice",
+                          "audio dsp", "hifi", "audio algorithm"]
+    has_audio_dsp = any(k in combined for k in audio_dsp_keywords)
+
+    # Must have C/Embedded C signal
+    c_keywords = ["embedded c", "embedded-c", " c ", "c/c++", "c developer",
+                  "c programming", "c language", "misra c", "firmware c",
+                  "adsp", "arm intrinsics", "cortex"]
+    has_c = any(k in combined for k in c_keywords)
+
+    return has_audio_dsp and has_c
 
 
 # ── CV match analysis ─────────────────────────────────────────────────────────
