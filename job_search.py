@@ -291,19 +291,21 @@ def parse_naukri_job(raw: dict) -> dict:
 def is_relevant(job: dict) -> bool:
     combined = (job["title"] + " " + job["skills_raw"]).lower()
 
-    # Must have Audio/DSP signal
-    audio_dsp_keywords = ["audio", "dsp", "audio processing", "audio codec",
-                          "acoustic", "amplifier", "sound", "speech", "voice",
-                          "audio dsp", "hifi", "audio algorithm"]
+    # Audio/DSP alone is enough
+    audio_dsp_keywords = [
+        "audio dsp", "audio processing", "audio codec", "audio firmware",
+        "audio embedded", "audio engineer", "audio developer", "audio software",
+        "dsp engineer", "dsp developer", "dsp firmware", "dsp audio",
+        "acoustic", "amplifier", "hifi", "audio algorithm", "speech processing",
+        "voice processing", "sound processing",
+    ]
     has_audio_dsp = any(k in combined for k in audio_dsp_keywords)
 
-    # Must have C/Embedded C signal
-    c_keywords = ["embedded c", "embedded-c", " c ", "c/c++", "c developer",
-                  "c programming", "c language", "misra c", "firmware c",
-                  "adsp", "arm intrinsics", "cortex"]
-    has_c = any(k in combined for k in c_keywords)
+    # OR embedded C/DSP without explicit "audio" (covers roles like DSP Engineer, Embedded C)
+    embedded_keywords = ["embedded c", "c/c++", "firmware engineer", "adsp", "arm intrinsics"]
+    has_embedded = any(k in combined for k in embedded_keywords)
 
-    return has_audio_dsp and has_c
+    return has_audio_dsp or has_embedded
 
 
 # ── CV match analysis ─────────────────────────────────────────────────────────
