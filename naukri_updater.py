@@ -109,6 +109,8 @@ def _login(page, email: str, password: str) -> None:
         page.wait_for_url(lambda url: "nlogin" not in url, timeout=15000)
         log.info("Login successful.")
     except PlaywrightTimeout:
+        page.screenshot(path="login_failed.png", full_page=True)
+        log.error("Login page screenshot saved as login_failed.png")
         raise RuntimeError("Login failed — check your email/password.")
 
 

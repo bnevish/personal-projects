@@ -46,11 +46,13 @@ jobs:
           TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
         run: xvfb-run python naukri_updater.py
 
-      - name: Upload run log
+      - name: Upload logs and screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: log-${{ github.run_id }}-${{ github.run_attempt }}
-          path: run_log.txt
+          path: |
+            run_log.txt
+            login_failed.png
           retention-days: 1
 
