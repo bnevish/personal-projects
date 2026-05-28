@@ -100,16 +100,36 @@ def run_update(email: str, password: str) -> None:
             browser.close()
 
 
+def _human_type(page, selector: str, text: str) -> None:
+    import random
+    page.click(selector)
+    page.wait_for_timeout(random.randint(200, 400))
+    for ch in text:
+        page.type(selector, ch, delay=random.randint(60, 180))
+    page.wait_for_timeout(random.randint(200, 500))
+
+
 def _login(page, email: str, password: str) -> None:
+    import random
     log.info("Navigating to login page...")
     page.goto(NAUKRI_LOGIN_URL, wait_until="domcontentloaded")
     page.wait_for_selector("input#usernameField", timeout=15000)
+    # Let Akamai sensor collect data before interacting
+    page.wait_for_timeout(random.randint(2000, 3500))
     log.info("Login form loaded.")
 
-    page.fill("input#usernameField", email)
-    page.wait_for_timeout(400)
-    page.fill("input#passwordField", password)
-    page.wait_for_timeout(400)
+    # Move mouse naturally before typing
+    page.mouse.move(400 + random.randint(-50, 50), 300 + random.randint(-30, 30))
+    page.wait_for_timeout(random.randint(300, 600))
+
+    _human_type(page, "input#usernameField", email)
+    page.wait_for_timeout(random.randint(500, 900))
+    _human_type(page, "input#passwordField", password)
+    page.wait_for_timeout(random.randint(600, 1200))
+
+    # Move to submit button and click
+    page.mouse.move(640 + random.randint(-20, 20), 450 + random.randint(-10, 10))
+    page.wait_for_timeout(random.randint(200, 400))
     page.click('button[type="submit"]')
 
     try:
