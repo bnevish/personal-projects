@@ -67,6 +67,13 @@ def run_update(email: str, password: str) -> None:
             ),
             viewport={"width": 1280, "height": 800},
         )
+        # Spoof platform so Linux runner looks like Windows to Akamai
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'platform', {get: () => 'Win32'});
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+            Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+        """)
         page = context.new_page()
         try:
             _login(page, email, password)
